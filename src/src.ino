@@ -1,10 +1,5 @@
-
-
-int inputPins[] = {9, 10, 11, 12};
-int recordButton = 13;
-
-int buttonState = 0;
-int recordState = 0;
+int inputPins[] = {8, 9, 10, 11};
+int recordButton = 12;
 
 int latch = 3;
 int data = 4;
@@ -12,23 +7,27 @@ int clock = 2;
 
 int piezo = 6;
 
-int blinkInterval = 100; //milliseconds
-
 //From B3 to D5, inclusive, includes semitones, 15 notes total
-int notes[] = {2025,1911,1804,1703,1607,1517,1432,1351,1276,1204,1136,1073,1012,956,902,851};
+int notes[] = {0, 2025,1911,1804,1703,1607,1517,1432,1351,1276,1204,1136,1073,1012,956,902,851};
 
-int recordedNotes[1000];
-int recordedNoteTime[1000]; //In milliseconds
+int recordedNote[100];
+int recordedNoteTime[100]; //In milliseconds
+
+
 
 void setup() {
   
-  for (int i=0; i<5; ++i){
+  for (int i=0; i<4; ++i){
     pinMode(inputPins[i], INPUT);
   }
+  pinMode(recordButton, INPUT);
   
   pinMode(latch, OUTPUT);
   pinMode(data, OUTPUT);
   pinMode(clock, OUTPUT);
+  pinMode(piezo, OUTPUT);
+  
+  clearNoteMemory();
   
   Serial.begin(9600);
   //Apparently reading from an unconnected pin is random-ish for seed
@@ -36,85 +35,108 @@ void setup() {
 }
 
 
-void changeLed(){
-  
-  //unsigned long time = millis();
-  
-  //if ((((time & B0100000)) >> 6) == 1){
-    int randomNum = random(16);
-    digitalWrite(latch, LOW);
-    shiftOut(data, clock, MSBFIRST, randomNum);
-    digitalWrite(latch, HIGH);
-  //}
-  
+
+void clearNoteMemory(){ //self-explanatory
+  for (int i=0; i<100; ++i){
+    recordedNote[i]=0;
+    recordedNoteTime[i]=0;
+  }
 }
+
+
+
+void changeLed(){//generate random 4 bit integer, sends to display
+  int randomNum = random(16);
+  digitalWrite(latch, LOW);
+  shiftOut(data, clock, MSBFIRST, randomNum);
+  digitalWrite(latch, HIGH);  
+}
+
+
 
 void playNote(int halfPeriod, long duration){ //in microsec
+  long temp = micros();
   
-  for (long i = 0; i< duration; i+= halfPeriod*2){
-    digitalWrite(piezo, HIGH);
-    delayMicroseconds(halfPeriod);
-    digitalWrite(piezo, LOW);
-    delayMicroseconds(halfPeriod);
+  //creates square wave approximation of sound wave
+  if (halfPeriod>0){
+    for (long i = 0; i< duration; i+= halfPeriod*2){
+      digitalWrite(piezo, HIGH);
+      delayMicroseconds(halfPeriod);
+      digitalWrite(piezo, LOW);
+      delayMicroseconds(halfPeriod);
+    }
+  }
+  else{ // delay here to keep timing correct
+    duration = duration/1000; //delayMicroseconds() cannot handle huge numbers
+    delay(duration);
   }
 }
 
-int readInButtons()
+
+
+int readInButtons() //Unpressed is LOW, pressed is HIGH
 {
-  int temp;
+  int temp = 0;
   for (int i=0; i<4; ++i){
-    if (digitalRead(inputPins[i])==LOW)
+    if (digitalRead(inputPins[i])==HIGH){
       temp |= 1<<i;
+    }
   }
-  return temp;
+  return temp; //returns 4 bit integer, where each bit is a button's on/off state
 }
 
 
 void loop(){
   
-  //random flashing here
+  static int prevButtonState = 0;
+  static int currentButtonState = 0;
+  static boolean isRecording = 0;
+  static long noteStartTime = 0;
+  static int noteNum = 0;
+  static boolean recordingPlayed = 1; 
   
+  //random flashing here
   changeLed();
   
-  //Currently 4 button
-  //Unpressed is HIGH, pressed is LOW
-  //For loop flips bits is unpressed is LOW, pressed is HIGH for button with bit n, from the right
-  /*buttonState = readInButtons();
+  //read Recording button info
+  isRecording = digitalRead(recordButton)==HIGH; 
   
-  Serial.println(buttonState);
-  
-  recordState = digitalRead(recordButton)==LOW; //need to flip bit
-  
-  //if (buttonState == 0)
-    playNote(buttonState, 25000L); //default play 25millisec
-  */
-  /*else { //buttonState ==1f 
-    unsigned long temptime= millis();
-    int pressTime = 0;
-    int currentButtonState;
-    int numberOfNotes = 0;
-    unsigned long currentTime = 0;
-    
-    while (digitalRead(recordButton)==LOW){
-      
-      currentButtonState = readInButtons();
-      currentTime = millis();
-      
-      if (currentButtonState !=buttonState){
-        
-        pressTime = currentTime - temptime;
-        
-        recordedNotes[numberOfNotes] = currentButtonState;
-        recordedNoteTime[numberOfNotes] = pressTime;
-        
-        numberOfNotes ++;
-        
-      }
-      
-      
+  //play Recording if it exists, and then clear recording data
+  if (!isRecording && !recordingPlayed){
+    for (int i = 0; i<noteNum; ++i)
+    {
+      Serial.print(recordedNote[i], BIN);
+      Serial.print(" time (msc): ");
+      Serial.println(recordedNoteTime[i]);
     }
-  }*/    
-  delay(100);    
+    
+    for (int i = 0; i < noteNum; ++i)
+      playNote(notes[recordedNote[i]], ((long)recordedNoteTime[i])*1000);
+    noteNum=0;
+    noteStartTime=0;
+    clearNoteMemory();
+  }
   
+  //read 4 button's info
+  currentButtonState = readInButtons();
+  //Serial.println(currentButtonState,BIN);
+  
+  
+  //If button is pressed, then perform recording logic
+  if (currentButtonState!= prevButtonState && isRecording){
+    if (noteStartTime>0){ //person must have pressed 2th or later note
+      //store timing
+      recordedNote[noteNum]=prevButtonState;
+      recordedNoteTime[noteNum]=millis()-noteStartTime;
+      noteNum++;
+    }
+    noteStartTime=millis();
+    
+    if(recordingPlayed ==1)
+      recordingPlayed =0;
+  }
+  
+  prevButtonState=currentButtonState;
+  playNote(notes[currentButtonState], 50000L); //default play every 50millisec
   
 }
