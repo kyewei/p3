@@ -9,7 +9,7 @@ int piezo = 6;
 
 //From C4 to D5, inclusive, includes semitones, 15 notes total
 int notes[] = {0, 1911,1804,1703,1607,1517,1432,1351,1276,1204,1136,1073,1012,956,902,851};
-
+int notesDelayed[] = {2000, 1868,1761,1660,1564,1474,1389,1308,1233,1161,1093,1030,969,913,859,808}; //above array delayed by 43 microseconds
 int recordedNote[100];
 int recordedNoteTime[100]; //In milliseconds
 
@@ -46,28 +46,47 @@ void clearNoteMemory(){ //self-explanatory
 
 
 void changeLed(){//generate random 4 bit integer, sends to display
+  
   int randomNum = random(16);
   digitalWrite(latch, LOW);
   shiftOut(data, clock, MSBFIRST, randomNum);
   digitalWrite(latch, HIGH);  
+  
 }
 
 
 
-void playNote(int halfPeriod, long duration){ //in microsec
+void playNote(int halfPeriod, int halfPeriod2, long duration){ //in microsec
+  
+  //counter here to count calls to this method
+  //every 64th call will blink
+  static int counter = 0;
+  counter++;
   
   //creates square wave approximation of sound wave
+  //halfPeriod is time HIGH, halfPeriod2 is time LOW
+  
   if (halfPeriod>0){
     for (long i = 0; i< duration; i+= halfPeriod*2){
       digitalWrite(piezo, HIGH);
       delayMicroseconds(halfPeriod);
       digitalWrite(piezo, LOW);
-      delayMicroseconds(halfPeriod);
+      
+      if (counter & B01000000){
+        halfPeriod2 -=264; //since this check causes a 264microsec delay, this compensates
+        changeLed();
+        counter = 0;
+      }
+      delayMicroseconds(halfPeriod2);
     }
   }
   else{ // delay here to keep timing correct
     duration = duration/1000; //delayMicroseconds() cannot handle huge numbers
     delay(duration);
+    if (counter & B01000000){
+      changeLed();
+      counter = 0;
+    }
   }
 }
 
@@ -94,7 +113,8 @@ void loop(){
   static int noteNum = 0;
   
   //random flashing here
-  changeLed();
+  //changeLed();
+  //calling flash moved to piezo method, since each call caused timing issues
   
   //read Recording button info
   isRecording = digitalRead(recordButton)==HIGH; 
@@ -109,7 +129,7 @@ void loop(){
     }*/
     
     for (int i = 0; i < noteNum; ++i)
-      playNote(notes[recordedNote[i]], ((long)recordedNoteTime[i])*1000);
+      playNote(notes[recordedNote[i]], notes[recordedNote[i]], ((long)recordedNoteTime[i])*1000);
     noteNum=0;
     noteStartTime=0;
     clearNoteMemory();
@@ -132,6 +152,8 @@ void loop(){
   }
   
   prevButtonState=currentButtonState;
-  playNote(notes[currentButtonState], 50000L); //default play every 50millisec
+  
+  //default play has LOW period compensated for timing, also has delay for blank note
+  playNote(notes[currentButtonState], notesDelayed[currentButtonState], notesDelayed[currentButtonState]); 
   
 }
