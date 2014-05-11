@@ -7,8 +7,8 @@ int clock = 2;
 
 int piezo = 6;
 
-//From B3 to D5, inclusive, includes semitones, 15 notes total
-int notes[] = {0, 2025,1911,1804,1703,1607,1517,1432,1351,1276,1204,1136,1073,1012,956,902,851};
+//From C4 to D5, inclusive, includes semitones, 15 notes total
+int notes[] = {0, 1911,1804,1703,1607,1517,1432,1351,1276,1204,1136,1073,1012,956,902,851};
 
 int recordedNote[100];
 int recordedNoteTime[100]; //In milliseconds
@@ -55,7 +55,6 @@ void changeLed(){//generate random 4 bit integer, sends to display
 
 
 void playNote(int halfPeriod, long duration){ //in microsec
-  long temp = micros();
   
   //creates square wave approximation of sound wave
   if (halfPeriod>0){
@@ -93,7 +92,6 @@ void loop(){
   static boolean isRecording = 0;
   static long noteStartTime = 0;
   static int noteNum = 0;
-  static boolean recordingPlayed = 1; 
   
   //random flashing here
   changeLed();
@@ -102,13 +100,13 @@ void loop(){
   isRecording = digitalRead(recordButton)==HIGH; 
   
   //play Recording if it exists, and then clear recording data
-  if (!isRecording && !recordingPlayed){
-    for (int i = 0; i<noteNum; ++i)
+  if (!isRecording && noteNum>0){
+    /*for (int i = 0; i<noteNum; ++i)
     {
       Serial.print(recordedNote[i], BIN);
       Serial.print(" time (msc): ");
       Serial.println(recordedNoteTime[i]);
-    }
+    }*/
     
     for (int i = 0; i < noteNum; ++i)
       playNote(notes[recordedNote[i]], ((long)recordedNoteTime[i])*1000);
@@ -131,9 +129,6 @@ void loop(){
       noteNum++;
     }
     noteStartTime=millis();
-    
-    if(recordingPlayed ==1)
-      recordingPlayed =0;
   }
   
   prevButtonState=currentButtonState;
