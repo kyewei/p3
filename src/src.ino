@@ -56,7 +56,7 @@ void changeLed(){//generate random 4 bit integer, sends to display
 
 
 
-void playNote(int halfPeriod, int halfPeriod2, long duration){ //in microsec
+void playNote(int highPeriod, int lowPeriod, long duration){ //in microsec
   
   //counter here to count calls to this method
   //every 64th call will blink
@@ -64,20 +64,19 @@ void playNote(int halfPeriod, int halfPeriod2, long duration){ //in microsec
   counter++;
   
   //creates square wave approximation of sound wave
-  //halfPeriod is time HIGH, halfPeriod2 is time LOW
   
-  if (halfPeriod>0){
-    for (long i = 0; i< duration; i+= halfPeriod*2){
+  if (highPeriod>0){
+    for (long i = 0; i< duration; i+= highPeriod*2){
       digitalWrite(piezo, HIGH);
-      delayMicroseconds(halfPeriod);
+      delayMicroseconds(highPeriod);
       digitalWrite(piezo, LOW);
       
       if (counter & B01000000){
-        halfPeriod2 -=264; //since this check causes a 264microsec delay, this compensates
+        lowPeriod -=264; //since this check causes a 264microsec delay, this compensates
         changeLed();
         counter = 0;
       }
-      delayMicroseconds(halfPeriod2);
+      delayMicroseconds(lowPeriod);
     }
   }
   else{ // delay here to keep timing correct
