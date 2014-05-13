@@ -58,34 +58,20 @@ void changeLed(){//generate random 4 bit integer, sends to display
 
 void playNote(int highPeriod, int lowPeriod, long duration){ //in microsec
   
-  //counter here to count calls to this method
-  //every 64th call will blink
-  static int counter = 0;
-  counter++;
+
   
   //creates square wave approximation of sound wave
   
   if (highPeriod>0){
-    for (long i = 0; i< duration; i+= highPeriod*2){
+    for (long i = 0; i< duration; i+= highPeriod+lowPeriod){
       digitalWrite(piezo, HIGH);
       delayMicroseconds(highPeriod);
       digitalWrite(piezo, LOW);
-      
-      if (counter & B01000000){
-        lowPeriod -=264; //since this check causes a 264microsec delay, this compensates
-        changeLed();
-        counter = 0;
-      }
       delayMicroseconds(lowPeriod);
     }
   }
-  else{ // delay here to keep timing correct
-    duration = duration/1000; //delayMicroseconds() cannot handle huge numbers
-    delay(duration);
-    if (counter & B01000000){
-      changeLed();
-      counter = 0;
-    }
+  else {
+    delay(duration/1000);
   }
 }
 
@@ -110,10 +96,16 @@ void loop(){
   static boolean isRecording = 0;
   static long noteStartTime = 0;
   static int noteNum = 0;
+  static int ledCounter = 0;
+  
+  long startTime = micros();
+  
+  ++ledCounter;
   
   //random flashing here
   //changeLed();
   //calling flash moved to piezo method, since each call caused timing issues
+  
   
   //read Recording button info
   isRecording = digitalRead(recordButton)==HIGH; 
@@ -134,6 +126,8 @@ void loop(){
     clearNoteMemory();
   }
   
+  
+  
   //read 4 button's info
   currentButtonState = readInButtons();
   //Serial.println(currentButtonState,BIN);
@@ -152,7 +146,14 @@ void loop(){
   
   prevButtonState=currentButtonState;
   
+  
+  if (ledCounter >> 12) {
+        changeLed();
+        ledCounter = 0;
+  }
+  
+  
   //default play has LOW period compensated for timing, also has delay for blank note
-  playNote(notes[currentButtonState], notesDelayed[currentButtonState], notesDelayed[currentButtonState]); 
+  playNote(notes[currentButtonState], notes[currentButtonState] - micros() + startTime, 1); 
   
 }
